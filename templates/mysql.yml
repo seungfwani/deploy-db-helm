@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-svc
+  namespace: {{ .Release.Name }}
+spec:
+  ports:
+  - name: db-port
+    port: 3306
+    nodePort: {{ .Values.networks.nodeport.mysql }}
+    protocol: TCP
+    targetPort: db-port
+  selector:
+    app: mysql
+  sessionAffinity: None
+  type: {{ .Values.service.type }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: {{ .Release.Name }}
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: mysql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - env:
+        - name: MYSQL_DATABASE
+          value: test
+        - name: MYSQL_ROOT_PASSWORD
+          value: biris.manse
+        image: "{{ .Values.image.repository }}/mysql:{{ .Values.image.mysql }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        name: mysql
+        ports:
+        - name: db-port
+          containerPort: 3306
+          protocol: TCP
+        resources: {}
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: mysql-my-cnf
+          mountPath: /etc/mysql/conf.d/
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: mysql-my-cnf
+        configMap:
+          name: mysql-my-cnf
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-my-cnf
+  namespace: {{ .Release.Namespace }}
+data:
+  my.cnf: |
+    [client]
+    default-character-set=utf8
+
+    [mysql]
+    default-character-set=utf8
+
+    [mysqld]
+    collation-server = utf8_unicode_ci
+    init-connect='SET NAMES utf8'
+    character-set-server = utf8
+
